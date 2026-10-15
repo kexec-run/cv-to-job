@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.12.15"
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install pinned TeX renderer
+        run: cargo install tectonic --version 0.17.0 --locked
+      - name: Install locked Python environment
+        run: uv sync --frozen --all-groups
+      - name: Lint
+        run: uv run ruff check .
+      - name: Test
+        run: uv run pytest -q
+      - name: Test Gmail wrapper (fake connector only)
+        run: node --test tests/gmail-wrapper.test.cjs
+      - name: Validate sample workspace
+        run: uv run cv-job --config sample/cv-job.yaml validate
+      - name: Audit sample workspace
+        run: uv run cv-job --config sample/cv-job.yaml audit-workspace
+      - name: Render sample TeX
+        run: uv run cv-job --config sample/cv-job.yaml render tex --in sample/cv_bases/example.tex --out /tmp/sample-resume.pdf
+      - name: Reject private or generated files in the Git index
+        run: |
+          test -z "$(git ls-files private cv-job.yaml)"
+          if git ls-files '*.pdf' | grep -q .; then
+            echo "Generated or personal PDFs must not be committed" >&2
+            exit 1
+          fi
+      - name: Scan Git history for secrets
+        uses: gitleaks/gitleaks-action@v2

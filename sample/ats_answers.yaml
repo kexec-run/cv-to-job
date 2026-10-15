@@ -1,0 +1,44 @@
+# Fictional example. The unified CLI checks documented types/choices, not truth or consent.
+# null means unknown; it is different from false, "No", or declining disclosure.
+answers: {} # Exact screening question -> candidate-confirmed answer.
+# Example structure (fictional only):
+# answers:
+#   "Are you willing to travel?": "No"
+# Never infer experience, legal eligibility, or sensitive answers from this example.
+
+work_authorization:
+  by_country: {} # Unknown until explicitly supplied for the relevant country.
+  # Example structure; null values MUST be resolved before answering a required question:
+  # by_country:
+  #   Exampleland:
+  #     authorized: null # Options: true, false, null.
+  #     sponsorship_required_now: null # Options: true, false, null.
+  #     sponsorship_required_future: null # Options: true, false, null.
+
+demographics:
+  # A disclosure preference, not a statement about the candidate's identity.
+  # Options for each field: prefer_not_to_disclose, ask.
+  # To disclose instead, put the candidate-confirmed answer to the exact question in answers.
+  gender: prefer_not_to_disclose
+  race_ethnicity: prefer_not_to_disclose
+  disability: prefer_not_to_disclose
+  veteran_status: prefer_not_to_disclose
+  if_decline_option_missing: ask # Options: ask, leave_blank (only if optional).
+
+consent:
+  # Ask means pause for the candidate's decision; never automatically check the box.
+  # Options: ask, accept, decline. Accept is only for an explicitly approved scope;
+  # it does not cover changed wording or certify that the candidate read a policy.
+  application_data_processing: ask
+  privacy_notice_acknowledgment: ask
+  future_opportunities: decline
+  marketing: decline
+  optional_sms: decline
+  background_check: ask
+  # Options: review_before_accepting, ask. Check every statement before certifying.
+  accuracy_certification: review_before_accepting
+  # Options: ask, decline. Never accept bundled optional consent just to proceed.
+  combined_or_unclear_consent: ask
+
+unknown_required_answer: ask # Required unresolved questions prevent submission.
+unknown_optional_answer: leave_blank # Options: leave_blank, ask.

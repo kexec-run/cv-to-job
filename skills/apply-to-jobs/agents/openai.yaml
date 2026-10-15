@@ -1,0 +1,4 @@
+interface:
+  display_name: "Apply to jobs"
+  short_description: "Find jobs and prepare verified ATS applications"
+  default_prompt: "Use $apply-to-jobs with my selected cv-job workspace to find suitable jobs and prepare applications, following my saved submission preferences and handling ATS signup or email verification when needed."

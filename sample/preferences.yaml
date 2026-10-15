@@ -1,0 +1,36 @@
+# Fictional example. Customize the copied private workspace before real use.
+# The unified CLI checks documented types/choices, not job matching or permission to submit.
+submission: review_before_submit # Options: review_before_submit, auto_submit.
+# auto_submit still requires resolved answers and any site-specific confirmation.
+
+maintained_bases:
+  infrastructure: cv_bases/example.tex
+
+# Desired role families, not claims about past employment titles.
+target_families:
+  - Systems Engineer
+
+job_kinds:
+  accepted: [full_time] # Options: full_time, part_time, contract, temporary, internship, apprenticeship.
+  excluded: [internship, temporary, contract] # Do not repeat an accepted kind here.
+  unlisted: ask # Options: ask, decline. Missing/ambiguous posting details are not a match.
+
+# Options for each arrangement: accept, decline, ask.
+remote: accept # Remote does not imply eligibility to work in every country.
+hybrid: ask
+onsite: ask
+relocation: ask
+travel: ask
+night_shifts: decline
+
+locations:
+  countries: [] # Country names; [] means unspecified, not worldwide authorization.
+  cities: [] # Optional preferred cities; [] means unspecified.
+  outside_preferences: ask # Options: ask, decline.
+
+salary:
+  minimum: null # Number or null (unknown); do not substitute 0.
+  currency: null # ISO currency code, e.g. USD, EUR, INR; required with an amount.
+  period: null # Options: annual, monthly, hourly, null (unknown).
+
+notice_period_days: null # Nonnegative integer or null (unknown).

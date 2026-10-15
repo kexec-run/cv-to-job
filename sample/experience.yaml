@@ -1,0 +1,22 @@
+records:
+  linux_automation:
+    status: demonstrated
+    master_quote: Built Linux automation for repeatable server setup.
+    allowed_claims: [Linux, automation]
+  uptime_result:
+    status: quantified
+    master_quote: Reduced routine setup time by 40%.
+    allowed_claims: [40%]
+  listed_tool:
+    status: listed
+    master_quote: "Listed tool: ExampleTool."
+    allowed_claims: [ExampleTool]
+  confirmed_tool:
+    status: candidate_confirmed
+    user_confirmation: I have used ConfirmedTool.
+    evidence: [Candidate confirmed use; scope is not yet detailed.]
+    allowed_claims: [ConfirmedTool]
+  unknown_tool:
+    status: unverified
+    master_quote: null
+    allowed_claims: [UnverifiedTool]

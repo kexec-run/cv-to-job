@@ -1,0 +1,11 @@
+-e .
+charset-normalizer==3.5.2
+    # via reportlab
+pillow==12.3.0
+    # via reportlab
+pypdfium2==5.14.0
+    # via cv-job
+pyyaml==6.0.3
+    # via cv-job
+reportlab==4.5.1
+    # via cv-job

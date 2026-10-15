@@ -1,0 +1,26 @@
+legal_first_name: Alex
+legal_middle_name: ""
+legal_last_name: Example
+preferred_first_name: Alex
+email: alex@example.test
+phone: "+1 555 010 0100"
+city: Example City
+state: Example State
+country: Exampleland
+timezone: Etc/UTC
+residential_address: Example Street
+postal_code: "00000"
+github: https://github.com/example-user
+linkedin: https://www.linkedin.com/in/example-user/
+employment:
+  example_org:
+    company: Example Organization
+    title_mutation_allowed: false
+    titles:
+      - title: Systems Engineer
+        from: "2022"
+        to: present
+education:
+  degree: Bachelor of Science
+  university: Example University
+  year: 2021

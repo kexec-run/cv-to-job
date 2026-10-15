@@ -1,0 +1,14 @@
+version: 1
+workspace: .
+paths:
+  instructions: AGENTS.md
+  candidate: candidate.yaml
+  experience: experience.yaml
+  preferences: preferences.yaml
+  ats_answers: ats_answers.yaml
+  applications: applications.json
+  applications_dir: applications
+  master_cv_dir: master_cv
+  cv_bases_dir: cv_bases
+  previews_dir: previews
+  templates_dir: templates
