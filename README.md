@@ -1,6 +1,10 @@
-# cv-job
+# cv-to-job
 
-Keep a detailed master CV, make shorter CVs for specific jobs, and track what you applied for. Real CVs, answers, and application history stay in an ignored `private/` folder. `sample/` contains fictional examples to copy and replace.
+Use an AI agent to tailor CVs, apply for jobs, and track applications.
+
+Keep a detailed master CV and make shorter versions for specific jobs. Real CVs, answers, and application history stay in an ignored `private/` folder. `sample/` contains fictional examples to copy and replace.
+
+The repository is **cv-to-job**; the command is still `cv-job` and the config file is `cv-job.yaml`.
 
 The agent workflow has been tested only with Codex. Other agents have not been verified. The Python CLI also works manually, without an agent.
 
