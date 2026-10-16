@@ -8,6 +8,12 @@ The repository is **cv-to-job**; the command is still `cv-job` and the config fi
 
 The agent workflow has been tested only with Codex. Other agents have not been verified. The Python CLI also works manually, without an agent.
 
+## Use truthful information
+
+I built this tool to help prepare and manage job applications, not to invent qualifications. Tailoring can change wording and emphasis, but should not change facts, titles, dates, experience, or results.
+
+You are responsible for reviewing your applications and deciding what to submit. The checks can catch some mistakes; they cannot guarantee that an application is accurate.
+
 ## Start here with Codex
 
 You do not need to learn TeX or YAML before starting. Codex can maintain those files; you supply facts, decide preferences, and review the documents and forms.
