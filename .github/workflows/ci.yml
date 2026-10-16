@@ -54,8 +54,8 @@ jobs:
         run: uv sync --frozen --all-groups
       - name: Lint
         run: uv run ruff check .
-      - name: Test
-        run: uv run pytest -q
+      - name: Test without TeX
+        run: uv run pytest -q -k 'not test_sample_resume_render_is_exactly_one_page'
       - name: Test Gmail wrapper (fake connector only)
         run: node --test tests/gmail-wrapper.test.cjs
       - name: Validate sample workspace
@@ -71,5 +71,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Install pinned TeX renderer
         run: cargo install tectonic --version 0.17.0 --locked
+      - name: Test TeX rendering
+        run: uv run pytest -q tests/test_workflow.py::test_sample_resume_render_is_exactly_one_page
       - name: Render sample TeX
         run: uv run cv-job --config sample/cv-job.yaml render tex --in sample/cv_bases/example.tex --out /tmp/sample-resume.pdf
