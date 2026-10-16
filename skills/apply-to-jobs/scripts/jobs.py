@@ -2,9 +2,9 @@
 """Application log for the apply-to-jobs skill.
 
 Data lives in <repo>/private/applications.json and one folder per application
-under <repo>/private/applications/<id>/. Single writer: the coordinating agent.
+under <repo>/private/applications/<id>/. CLI writes use short flock transactions.
 
-  jobs.py run start --target 10 --objective "..."     start a run (ends any active one)
+  jobs.py run start --target 10 --objective "..."     refuses an already active run
   jobs.py run end
   jobs.py check --url URL [--company C --title T]     -> {"status": "new" | <existing status>, ...}
   jobs.py add --company C --title T --url URL --site S [--location L] [--status in_progress|skipped]
@@ -20,6 +20,8 @@ import json
 import os
 import re
 import sys
+import tempfile
+from contextlib import nullcontext
 from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
@@ -28,6 +30,7 @@ STATUSES = ("in_progress", "review_ready", "applied", "rejected", "skipped", "bl
 TRACKING_KEYS = {"ref", "source", "sourceid", "gh_src", "lever-source", "src", "trk", "trackingtag"}
 REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT / "src"))
+from cv_job.application_lock import LockBusy, LockUnavailable, application_lock
 from cv_job.config import load_config
 
 
@@ -139,10 +142,21 @@ class Log:
             self.data = {"active_run": None, "runs": [], "applications": []}
 
     def save(self) -> None:
+        # Production callers hold application_lock across construction + mutation + save.
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.path.with_suffix(".json.tmp")
-        tmp.write_text(json.dumps(self.data, indent=1, ensure_ascii=False) + "\n")
-        os.replace(tmp, self.path)
+        payload = json.dumps(self.data, indent=1, ensure_ascii=False) + "\n"
+        fd, name = tempfile.mkstemp(prefix=f".{self.path.name}.", suffix=".tmp", dir=self.path.parent)
+        tmp = Path(name)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as stream:
+                if self.path.exists():
+                    os.fchmod(stream.fileno(), self.path.stat().st_mode & 0o777)
+                stream.write(payload)
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(tmp, self.path)
+        finally:
+            tmp.unlink(missing_ok=True)
 
     @property
     def apps(self) -> list:
@@ -176,9 +190,61 @@ class Log:
                 return r
         return None
 
+    def apps_for_run(self, run_id) -> list:
+        if run_id is None:
+            return list(self.apps)
+        run = next((r for r in self.data["runs"] if r["id"] == run_id), {})
+        participants = set(run.get("applications", []))
+        return [app for app in self.apps if app.get("run") == run_id or app["id"] in participants]
+
 
 def out(obj) -> None:
     print(json.dumps(obj, indent=1, ensure_ascii=False))
+
+
+def owner_id(value: str) -> str:
+    if not re.fullmatch(r"[A-Za-z0-9_.-]{1,80}", value):
+        raise argparse.ArgumentTypeError("owner must be an opaque ID of 1–80 letters, digits, dots, underscores or hyphens")
+    return value
+
+
+def require_owner(record: dict, args) -> None:
+    claim = record.get("claim")
+    owner = getattr(args, "owner", None)
+    if claim is not None:
+        if not isinstance(claim, dict) or not claim.get("owner") or claim["owner"] != owner:
+            sys.exit("error: application is claimed; supply its assigned --owner, or coordinate a handoff")
+    elif owner is not None:
+        sys.exit("error: application is not claimed; claim it before updating as a worker")
+
+
+def cmd_claim(log: Log, a) -> None:
+    app = log.get(a.id)
+    if app.get("status") in {"applied", "rejected"}:
+        sys.exit("error: cannot claim an already submitted application")
+    changed = False
+    if app.get("claim") is not None:
+        require_owner(app, a)
+    else:
+        app["claim"] = {"owner": a.owner, "claimed_at": now()}
+        app["updated"] = now()
+        changed = True
+    run = log.active_run()
+    if run and app["id"] not in run.get("applications", []):
+        run.setdefault("applications", []).append(app["id"])
+        changed = True
+    if changed:
+        log.save()
+    out({"id": app["id"], "claim": app["claim"]})
+
+
+def cmd_release(log: Log, a) -> None:
+    app = log.get(a.id)
+    require_owner(app, a)
+    app.pop("claim")
+    app["updated"] = now()
+    log.save()
+    out({"id": app["id"], "claim": None})
 
 
 # ---------------------------------------------------------------- commands
@@ -187,10 +253,11 @@ def cmd_run(log: Log, a) -> None:
     if a.action == "start":
         cur = log.active_run()
         if cur:
-            cur["ended"] = now()
-            cur["status"] = "ended"
+            sys.exit("error: a run is already active; resume it instead of starting another")
         run = {"id": datetime.now().strftime("%Y%m%d-%H%M%S-%f"), "target": a.target,
                "objective": a.objective, "started": now(), "status": "active"}
+        if getattr(a, "owner", None):
+            run["owner"] = a.owner
         log.data["runs"].append(run)
         log.data["active_run"] = run["id"]
         log.save()
@@ -199,6 +266,8 @@ def cmd_run(log: Log, a) -> None:
         cur = log.active_run()
         if not cur:
             sys.exit("error: no active run")
+        if cur.get("owner") and cur["owner"] != getattr(a, "owner", None):
+            sys.exit("error: only the assigned coordinator --owner may end this run")
         cur["ended"] = now()
         cur["status"] = "ended"
         log.data["active_run"] = None
@@ -212,7 +281,7 @@ def cmd_check(log: Log, a) -> None:
         out({"status": "new", "key": job_key(a.url)})
         return
     out({"status": app["status"], "id": app["id"], "matched_on": how, "company": app["company"],
-         "title": app["title"], "run": app.get("run"), "updated": app["updated"]})
+         "title": app["title"], "run": app.get("run"), "updated": app["updated"], "claim": app.get("claim")})
 
 
 def cmd_add(log: Log, a) -> None:
@@ -223,7 +292,8 @@ def cmd_add(log: Log, a) -> None:
     date = datetime.now().strftime("%Y-%m-%d")
     base = f"{date}_{slug(a.company, 30)}_{slug(a.title, 40)}"
     app_id, n = base, 2
-    while any(x["id"] == app_id for x in log.apps):
+    while (any(x["id"] == app_id for x in log.apps)
+           or (log.folder_root / app_id).exists() or (log.folder_root / app_id).is_symlink()):
         app_id, n = f"{base}-{n}", n + 1
     key = job_key(a.url)
     folder = log.folder_root / app_id
@@ -237,19 +307,24 @@ def cmd_add(log: Log, a) -> None:
         "created": now(), "updated": now(),
         "history": [{"status": a.status, "at": now(), "note": a.note or a.reason or ""}],
     }
+    if getattr(a, "owner", None):
+        if a.status in {"applied", "rejected"}:
+            sys.exit("error: cannot claim an already submitted application")
+        rec["claim"] = {"owner": a.owner, "claimed_at": now()}
     if a.status == "in_progress" or a.posting_file:
-        folder.mkdir(parents=True, exist_ok=True)
+        folder.mkdir(parents=True, exist_ok=False)
         if a.posting_file:
             text = Path(a.posting_file).read_text()
             header = f"# {a.company} — {a.title}\n\n{a.location}\n{a.url}\n\n---\n\n"
             (folder / "job.md").write_text(header + text)
     log.apps.append(rec)
     log.save()
-    out({"id": app_id, "folder": rec["folder"], "status": a.status, "run": rec["run"]})
+    out({"id": app_id, "folder": rec["folder"], "status": a.status, "run": rec["run"], "claim": rec.get("claim")})
 
 
 def cmd_update(log: Log, a) -> None:
     app = log.get(a.id)
+    require_owner(app, a)
     if a.details_file:
         details = json.loads(Path(a.details_file).read_text())
         allowed = {"base", "role_orientation", "answers", "unresolved", "form_check"}
@@ -264,6 +339,9 @@ def cmd_update(log: Log, a) -> None:
             stored.setdefault("answers", {}).update(details.pop("answers"))
         stored.update(details)
     if a.add_url:
+        existing, _ = log.find(a.add_url)
+        if existing and existing["id"] != app["id"]:
+            sys.exit("error: URL already belongs to another application; coordinate a handoff before continuing")
         key = job_key(a.add_url)
         if key and key not in app["keys"]:
             app["keys"].append(key)
@@ -304,7 +382,7 @@ def cmd_history(log: Log, a) -> None:
 
 
 def summary(log: Log, run_id) -> dict:
-    apps = [x for x in log.apps if run_id is None or x.get("run") == run_id]
+    apps = log.apps_for_run(run_id)
     counts = {s: sum(1 for x in apps if x["status"] == s) for s in STATUSES}
     counts["total"] = len(apps)
     return counts
@@ -322,9 +400,7 @@ def cmd_status(log: Log, a) -> None:
 
 
 def cmd_list(log: Log, a) -> None:
-    apps = list(log.apps)
-    if a.run:
-        apps = [x for x in apps if x.get("run") == a.run]
+    apps = log.apps_for_run(a.run)
     if a.status:
         apps = [x for x in apps if x["status"] == a.status]
     apps = apps[-a.limit:] if a.limit else apps
@@ -334,12 +410,16 @@ def cmd_list(log: Log, a) -> None:
     print(f"({len(apps)} shown)")
 
 
+def cmd_show(log: Log, a) -> None:
+    out(log.get(a.id))
+
+
 def cmd_report(log: Log, a) -> None:
     run = log.active_run() or (log.data["runs"][-1] if log.data["runs"] else None)
     if not run:
         print("No runs yet.")
         return
-    apps = [x for x in log.apps if x.get("run") == run["id"]]
+    apps = log.apps_for_run(run["id"])
     s = summary(log, run["id"])
     print(f"## Run {run['id']} — {run['objective']}\n")
     print(f"Target {run['target']} · applied {s['applied']} · review ready {s['review_ready']} · "
@@ -395,7 +475,19 @@ def main(argv: list[str] | None = None) -> int:
     for f in ("confirmation", "reason", "note", "cover-letter", "resume", "location"):
         u.add_argument(f"--{f}")
 
+    claim = sub.add_parser("claim", help="claim an existing unsubmitted application")
+    claim.add_argument("--id", required=True)
+    release = sub.add_parser("release", help="explicit owner handoff; inspect ambiguous submissions first")
+    release.add_argument("--id", required=True)
+    for command in (r, ad, u, claim, release):
+        command.add_argument("--owner", type=owner_id, required=command in (claim, release),
+                             help="unique coordinator/worker ID; required for claimed records")
+        command.add_argument("--lock-timeout", type=float, default=10,
+                             help="seconds to wait for the application-log transaction lock (default: 10)")
+
     sub.add_parser("status")
+    show = sub.add_parser("show", help="print one complete application record as JSON (read-only)")
+    show.add_argument("--id", required=True)
     ls = sub.add_parser("list")
     ls.add_argument("--status", choices=STATUSES)
     ls.add_argument("--run")
@@ -411,10 +503,25 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     root = (a.root or repo_root()).resolve()
-    log = Log(root, config.path("applications"), config.path("applications_dir"), config.workspace)
-    {"run": cmd_run, "check": cmd_check, "add": cmd_add, "update": cmd_update,
-     "status": cmd_status, "list": cmd_list, "report": cmd_report,
-     "history": cmd_history}[a.cmd](log, a)
+    lock = (application_lock(config.path("applications"), a.lock_timeout)
+            if a.cmd in {"run", "add", "update", "claim", "release"} else nullcontext())
+    try:
+        with lock:
+            # Read only after locking: locking save() alone still loses concurrent changes.
+            log = Log(root, config.path("applications"), config.path("applications_dir"), config.workspace)
+            {"run": cmd_run, "check": cmd_check, "add": cmd_add, "update": cmd_update,
+             "status": cmd_status, "list": cmd_list, "show": cmd_show, "report": cmd_report,
+             "history": cmd_history, "claim": cmd_claim, "release": cmd_release}[a.cmd](log, a)
+    except LockBusy as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 3
+    except LockUnavailable as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    except (OSError, ValueError):
+        print("error: application transaction failed; inspect the log before retrying; no lock bypass is allowed",
+              file=sys.stderr)
+        return 2
     return 0
 
 

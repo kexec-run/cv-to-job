@@ -8,6 +8,20 @@ permissions:
   contents: read
 
 jobs:
+  macos-locking:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.12.15"
+      - name: Install locked Python environment
+        run: uv sync --frozen --all-groups
+      - name: Test real process locking on macOS
+        run: uv run pytest -q tests/test_application_locking.py
   checks:
     runs-on: ubuntu-latest
     steps:

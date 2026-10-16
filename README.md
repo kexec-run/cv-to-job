@@ -224,6 +224,7 @@ The agent reads root `AGENTS.md` and the selected workspace's configured instruc
 
 ```bash
 uv run cv-job applications list
+uv run cv-job applications show --id APPLICATION_ID
 ```
 
 ### Ready for the first application?
@@ -241,6 +242,14 @@ Give Codex a real posting URL:
 > Prepare an application for this job: [URL]. Check my selected workspace and prior applications first. Ask about missing required answers, create and review the tailored CV, and stop before final submission. If browser access is unavailable, give me the CV and answers for manual application.
 
 Expect a job-specific PDF and private application record, a prepared/reviewed form when browser access permits, and a short list of anything unresolved. Read the PDF and form yourself. Explicitly approve submission only when ready; a click or a requested verification code is not proof of success. You can begin with Greenhouse's tested direct flow below.
+
+### Multiple agents
+
+The code supports multiple agents working on applications. I tested two agents handing off one job and filling its form, without submitting it. I have not tested multiple agents filling and submitting applications at the same time. File locking and claim tests pass, but they do not guarantee that agents won’t submit the same application twice.
+
+For multiple workers, follow [multiagent coordination](docs/multiagent.md): one shared-run coordinator, one owner per application, and short automatic file locks around JSON changes. Claim a job before working on it; a file lock alone does not prevent duplicate website submissions. Linux is tested locally; macOS CI coverage is configured and actual WSL2 verification remains a separate check. Keep WSL workspaces under `/home/...`, not a mixed Windows/WSL folder.
+
+Claiming an existing application automatically includes it in the active run's reports without changing its original run. Use `applications show --id APPLICATION_ID` to inspect a complete record. Handoffs remain explicit release → claim.
 
 ### Tested websites
 

@@ -18,6 +18,8 @@ Run `uv run cv-job ...` from this repository's root, carrying `--config PATH` be
 
 Honor the selected submission preference and site-specific confirmation rules. A target application count does not authorize changing them. Required unresolved answers prevent submission. Record `applied` only after confirming the application's submitted state; account signup or email verification alone is insufficient.
 
+For multiagent application work, read `docs/multiagent.md`. One coordinator owns the shared run; each worker must claim its assigned job with a unique `--owner` and pass it on every update. Never share a job/browser context, edit the JSON directly, delete lock files, or steal stale claims. Stop failed/ambiguous workers and verify portal state before an explicit handoff. Keep Gmail serialized through one coordinator/session. File ownership never expands submission authorization.
+
 ## ATS login credentials
 
 Workspace configuration is YAML; private `.env` files are a separate, existing credential source, not an environment-variable configuration interface for `cv-job`. Before creating or resetting an ATS account, check the selected workspace's account metadata, available OS credential store, and relevant employer/tenant credential-file paths. Include hidden, Git-ignored files when checking for presence; normal file searches may omit them. Limit discovery to the selected private workspace and active employer. Match the exact ATS host/tenant and application email; never try another employer's credentials.
