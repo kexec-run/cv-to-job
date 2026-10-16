@@ -1,5 +1,6 @@
 # Contributing
 
+- Use commit subjects such as `feat: preserve job postings`, `fix: correct validation`, or `refactor: simplify configuration`. Other prefixes include `docs:`, `test:`, `ci:`, and `chore:`.
 - Keep the tool candidate-neutral. Candidate facts and policies belong in the selected workspace.
 - Keep `sample/` entirely fictional. Do not copy real application history, job postings, documents, or contact information into it.
 - Add regression tests for behavior changes and run Ruff and pytest.

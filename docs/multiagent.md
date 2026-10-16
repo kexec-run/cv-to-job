@@ -60,6 +60,8 @@ uv run cv-job applications report
 
 Every mutating application CLI command takes an exclusive Python `fcntl.flock` on a permanent sidecar beside the resolved configured log: usually `private/applications.json.lock`. The lock covers loading the latest JSON, deduplication/ownership checks, mutation, and save. Configurations referring to the same resolved log share that lock. Readers see the complete old or new JSON without taking a writer lock.
 
+`add` captures the posting before taking that lock, then rechecks deduplication inside the transaction. Failed captures create no application record. Every new record, including skipped jobs, gets a snapshot folder. `--posting-file PATH` supplies captured browser text instead of fetching. Existing snapshots are never replaced by a duplicate add.
+
 Saving uses a unique sibling temporary file, flushes/fsyncs it, then atomically replaces the JSON. Existing log permissions are preserved. A failed pre-replacement write leaves the old JSON intact; the command removes only its own temporary file, never a pre-existing staging file. Folder creation and JSON are not one filesystem transaction: a failed add can leave an unrecorded folder. Keep it for inspection; later adds choose a different available folder rather than overwriting it.
 
 The lock is held only during the short CLI transaction, never while browsing, rendering, or waiting for email. The default wait is 10 seconds; put `--lock-timeout SECONDS` after the mutating subcommand if needed. Timeout returns exit code `3`; configuration/transaction failures return `2`; ownership/deduplication conflicts return nonzero. A failed command must not be treated as a successful reservation/update. After an ambiguous failure, reread the log before retrying.

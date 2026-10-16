@@ -32,6 +32,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 from cv_job.application_lock import LockBusy, LockUnavailable, application_lock
 from cv_job.config import load_config
+from cv_job.posting import PostingError, capture_posting
 
 
 def repo_root() -> Path:
@@ -311,12 +312,8 @@ def cmd_add(log: Log, a) -> None:
         if a.status in {"applied", "rejected"}:
             sys.exit("error: cannot claim an already submitted application")
         rec["claim"] = {"owner": a.owner, "claimed_at": now()}
-    if a.status == "in_progress" or a.posting_file:
-        folder.mkdir(parents=True, exist_ok=False)
-        if a.posting_file:
-            text = Path(a.posting_file).read_text()
-            header = f"# {a.company} — {a.title}\n\n{a.location}\n{a.url}\n\n---\n\n"
-            (folder / "job.md").write_text(header + text)
+    folder.mkdir(parents=True, exist_ok=False)
+    rec["posting"] = a.captured_posting.save(folder, a.company, a.title, a.location or "")
     log.apps.append(rec)
     log.save()
     out({"id": app_id, "folder": rec["folder"], "status": a.status, "run": rec["run"], "claim": rec.get("claim")})
@@ -465,7 +462,7 @@ def main(argv: list[str] | None = None) -> int:
     ad.add_argument("--status", choices=STATUSES, default="in_progress")
     ad.add_argument("--reason", default="")
     ad.add_argument("--note", default="")
-    ad.add_argument("--posting-file", default="")
+    ad.add_argument("--posting-file", default="", help="use supplied UTF-8 posting text instead of automatic HTTP capture")
 
     u = sub.add_parser("update")
     u.add_argument("--id", required=True)
@@ -506,12 +503,22 @@ def main(argv: list[str] | None = None) -> int:
     lock = (application_lock(config.path("applications"), a.lock_timeout)
             if a.cmd in {"run", "add", "update", "claim", "release"} else nullcontext())
     try:
+        if a.cmd == "add":
+            # Fetch before locking; recheck deduplication inside the transaction.
+            snapshot = Log(root, config.path("applications"), config.path("applications_dir"), config.workspace)
+            existing, _ = snapshot.find(a.url, a.company, a.title)
+            if existing:
+                sys.exit(f"error: already logged as {existing['id']}; use show/claim/update")
+            a.captured_posting = capture_posting(a.url, a.posting_file)
         with lock:
             # Read only after locking: locking save() alone still loses concurrent changes.
             log = Log(root, config.path("applications"), config.path("applications_dir"), config.workspace)
             {"run": cmd_run, "check": cmd_check, "add": cmd_add, "update": cmd_update,
              "status": cmd_status, "list": cmd_list, "show": cmd_show, "report": cmd_report,
              "history": cmd_history, "claim": cmd_claim, "release": cmd_release}[a.cmd](log, a)
+    except PostingError as exc:
+        print(f"error: {exc}; no application added", file=sys.stderr)
+        return 2
     except LockBusy as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 3

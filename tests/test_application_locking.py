@@ -24,6 +24,7 @@ pytestmark = pytest.mark.skipif(locking.fcntl is None, reason="POSIX flock requi
 def workspace(tmp_path):
     workspace = tmp_path / "workspace"
     shutil.copytree(ROOT / "sample", workspace)
+    (workspace / "posting.txt").write_text("Fictional systems engineering job posting for temporary CLI tests.")
     return workspace
 
 
@@ -38,7 +39,8 @@ def data(workspace):
 
 def add(workspace, index=0, *args):
     return command(workspace, "add", "--company", "Example", "--title", "Systems Engineer",
-                   "--url", f"https://example.test/jobs/{index}", *args)
+                   "--url", f"https://example.test/jobs/{index}",
+                   "--posting-file", str(workspace / "posting.txt"), *args)
 
 
 def successful(result):
@@ -230,6 +232,7 @@ def test_unified_cli_passes_worker_and_timeout_options(workspace):
         sys.executable, "-m", "cv_job.cli", "--config", str(workspace / "cv-job.yaml"), "applications", "add",
         "--company", "Example", "--title", "Engineer", "--url", "https://example.test/jobs/unified",
         "--owner", "worker-unified", "--lock-timeout", "1",
+        "--posting-file", str(workspace / "posting.txt"),
     ], capture_output=True, text=True, timeout=20, check=False,
         env={**os.environ, "PYTHONPATH": str(ROOT / "src")})
     app = successful(result)

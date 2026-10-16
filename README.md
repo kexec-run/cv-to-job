@@ -243,6 +243,10 @@ uv run cv-job applications show --id APPLICATION_ID
 
 ### Prepare your first application
 
+Adding a job with `cv-job applications add` automatically fetches its public URL and saves `job.md` plus the original response as `posting.html` in that application's private folder. The record includes the capture time, source URL, and final URL. Existing records and snapshots are not overwritten or automatically backfilled.
+
+This is an HTTP snapshot, not a browser archive: it does not run JavaScript, log in, or guarantee that a site returned the complete JD. Requests have a 10-second socket timeout and a 2 MiB response limit. Errors, empty pages, and recognized access challenges stop the add without creating a record. For login-only, JavaScript-only, or blocked pages, save the visible posting text and pass `--posting-file PATH`; the CLI uses that file without fetching the URL. Review the captured text before tailoring. No AI is needed for automatic capture, and no new Python dependencies are required.
+
 Give Codex a real posting URL:
 
 > Prepare an application for this job: [URL]. Check my selected workspace and prior applications first. Ask about missing required answers, create and review the tailored CV, and stop before final submission. If browser access is unavailable, give me the CV and answers for manual application.

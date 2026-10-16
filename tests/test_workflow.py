@@ -14,6 +14,7 @@ from cv_job.config import (
     load_config,
     resolve_artifact_path,
 )
+from cv_job.posting import Posting
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -506,7 +507,8 @@ def test_configured_application_write_uses_workspace_relative_paths(tmp_path, ca
     args = SimpleNamespace(
         url="https://jobs.example.test/123", company="Example Org", title="Engineer",
         location="Example City", site="", status="in_progress", reason="", note="",
-        posting_file="",
+        posting_file="", captured_posting=Posting("Fictional posting.", "2026-10-16T00:00:00+00:00",
+                                                   "https://jobs.example.test/123", "https://jobs.example.test/123"),
     )
     jobs.cmd_add(log, args)
     saved = jobs.Log(tmp_path, workspace / "applications.json", workspace / "applications", workspace)

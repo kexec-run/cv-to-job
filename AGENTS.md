@@ -36,4 +36,6 @@ If access fails or remains rate-limited, report the verified findings and unchec
 
 ## Repository changes
 
+Use prefixed commit subjects: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `ci:`, or `chore:`, followed by a short description. Do not rewrite existing history just to change old commit messages.
+
 Read before editing, make focused changes, and preserve unrelated working-tree edits. Run application-write tests only in temporary workspaces. After Python changes, run `uv run ruff check .` and `uv run pytest -q`; after wrapper changes, run `node --test tests/gmail-wrapper.test.cjs`. After configuration or rendering changes, also validate and audit `sample/cv-job.yaml`; keep rendered test output in a temporary directory. Explain failed or unavailable checks rather than claiming they passed. For private backup/restore, follow `docs/backup.md`; never overwrite a current workspace with a backup. See the README for installation and command examples.
